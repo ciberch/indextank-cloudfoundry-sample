@@ -1,21 +1,15 @@
 require 'rubygems'
 require 'sinatra'
 require 'indextank'
-require 'yajl'
 
 before do
-    @docid = "seamonkey#{rand(1122334455)}"
+  @docid = "seamonkey#{rand(1122334455)}"
+  @api_url = ENV["indextank_api_url"]
+  @index_name = "tags"
+  @itc = IndexTank::Client.new(@api_url)
 
-    # grab IndexTank credentials from ENV
-    @js = Yajl::Parser.parse ENV['VCAP_SERVICES']
-    if @js and @js['indextank-1.0'] then
-        # grab 0, assuming you have just one provisioned instance of indextank-1.0 .. 
-        creds = @js['indextank-1.0'][0]['credentials']
-        @itc = IndexTank::Client.new(creds['INDEXTANK_PRIVATE_API_URL'])
-
-        # and assume you have just one index.
-        @index = @itc.indexes(creds["INDEXTANK_INDEX_NAMES"][0])
-    end
+  # and assume you have just one index.
+  @index = @itc.indexes(@index_name)
 end
 
 
@@ -23,7 +17,7 @@ after do
     if @index then
         begin
             @index.document(@docid).delete()
-        rescue e
+        rescue Exception => e
             # could not delete the document .. too bad.
             p e
         end
@@ -33,15 +27,15 @@ end
 
 get '/' do
     if @index then
-        
+
         # add a document
         d = @index.document(@docid)
         d.add({:text => "some random text .. #{@docid}"})
 
         # search it
         docs = @index.search("random #{@docid}")
-        
-        # did we find it? 
+
+        # did we find it?
         if docs['results'].length == 1 then
             # success!
             "<h1>This is an IndexTank-powered Cloud Foundry App. </h1> <h2>it just created, searched and deleted #{@docid}</h2>"
@@ -51,6 +45,6 @@ get '/' do
         end
     else
         # fail
-        [500, "NO IndexTank provisioned ...  #{ENV['VCAP_SERVICES']}"]
+        [500, "NO IndexTank provisioned ...  #{ENV['indextank_api_url']}"]
     end
 end
